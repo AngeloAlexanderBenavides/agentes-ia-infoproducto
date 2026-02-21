@@ -1,6 +1,19 @@
 version: '3.8'
 
 services:
+  evolution-postgres:
+    image: postgres:15-alpine
+    container_name: evolution-postgres
+    environment:
+      - POSTGRES_DB=evolution
+      - POSTGRES_USER=evolution
+      - POSTGRES_PASSWORD=evolution123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - whatsapp-network
+    restart: always
+
   evolution-api:
     image: atendai/evolution-api:latest
     container_name: evolution-api
@@ -8,12 +21,15 @@ services:
       - "8080:8080"
     environment:
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
-      - SERVER_URL=http://${PUBLIC_IP}:8080
-      - DATABASE_ENABLED=false
+      - SERVER_URL=http://${PUBLIC_IP:-45.55.54.184}:8080
+      - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution:evolution123@evolution-postgres:5432/evolution
       - CACHE_REDIS_ENABLED=false
       - CACHE_LOCAL_ENABLED=true
     restart: always
+    depends_on:
+      - evolution-postgres
     volumes:
       - evolution_data:/evolution/instances
     networks:
@@ -45,6 +61,7 @@ services:
 
 volumes:
   evolution_data:
+  postgres_data:
 
 networks:
   whatsapp-network:
