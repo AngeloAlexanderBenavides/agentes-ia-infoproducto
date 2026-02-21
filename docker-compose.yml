@@ -9,6 +9,10 @@ services:
     environment:
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
       - SERVER_URL=http://${PUBLIC_IP}:8080
+      - DATABASE_ENABLED=false
+      - DATABASE_PROVIDER=postgresql
+      - CACHE_REDIS_ENABLED=false
+      - CACHE_LOCAL_ENABLED=true
     restart: always
     volumes:
       - evolution_data:/evolution/instances
