@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: evolution-api
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - SERVER_URL=http://${PUBLIC_IP}:8080
+    restart: always
+    volumes:
+      - evolution_data:/evolution/instances
+    networks:
+      - whatsapp-network
+
+  fastapi-backend:
+    build: ./backend
+    container_name: fastapi-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - EVOLUTION_INSTANCE_NAME=${EVOLUTION_INSTANCE_NAME}
+      - OWNER_WHATSAPP=${OWNER_WHATSAPP}
+      - BANK_ACCOUNT_NUMBER=${BANK_ACCOUNT_NUMBER}
+      - BANK_ACCOUNT_HOLDER=${BANK_ACCOUNT_HOLDER:-Angelo}
+      - PRODUCT_NAME=${PRODUCT_NAME}
+      - PRODUCT_DESCRIPTION=${PRODUCT_DESCRIPTION:-Curso de IA}
+      - LEAD_MAGNET_URL=${LEAD_MAGNET_URL:-https://example.com/gift}
+    restart: always
+    depends_on:
+      - evolution-api
+    volumes:
+      - ./data:/app/data
+    networks:
+      - whatsapp-network
+
+volumes:
+  evolution_data:
+
+networks:
+  whatsapp-network:
+    driver: bridge
