@@ -79,13 +79,8 @@ class RouterAgent:
             return await self._provide_more_info(sender, state)
 
         elif intent == "objection":
-            # Handle objections using AI
-            response = await openai_service.handleObjection(
-                message=message,
-                user_name=state.user_name,
-                objection_type="general"
-            )
-            return response
+            # Handle objections with deterministic templates (no AI generation)
+            return await self._handle_objection(sender, state, message)
 
         else:  # unclear
             # Unclear intent - prompt user
