@@ -20,19 +20,45 @@ class RouterAgent:
     - Handles objections
     """
 
+    def _classifyIntentLocally(self, message: str) -> str | None:
+        """
+        Fast keyword-based intent classification — no API call needed.
+        Returns None if ambiguous so the caller can use AI as fallback.
+        """
+        m = message.strip().lower()
+        PURCHASE = ["1", "comprar", "pagar", "precio", "cómo pago", "como pago", "quiero", "proceder", "sí quiero", "si quiero", "me interesa", "cuánto", "cuanto"]
+        INFO = ["2", "más info", "mas info", "información", "informacion", "cómo funciona", "como funciona", "detalles", "qué incluye", "que incluye", "saber más", "saber mas"]
+        OBJECTION = ["3", "caro", "no tengo", "sin dinero", "después", "luego", "espera", "duda", "dudas", "no sé", "no se", "pensarlo"]
+        for kw in PURCHASE:
+            if kw in m:
+                return "purchase"
+        for kw in INFO:
+            if kw in m:
+                return "info"
+        for kw in OBJECTION:
+            if kw in m:
+                return "objection"
+        return None
+
     async def process(self, sender: str, message: str, state: ConversationState) -> str:
         """
-        Analyze message and route appropriately using AI
+        Analyze message and route appropriately.
+        Uses fast local matching; only calls AI when ambiguous.
         """
-        # Use OpenAI to classify intent intelligently
         openai_service = OpenAiService()
-        intent = await openai_service.classifyIntent(
-            message=message,
-            user_name=state.user_name,
-            context=f"Usuario de nivel {state.user_level}"
-        )
 
-        logger.info(f"Intent classified as: {intent} for user {state.user_name}")
+        # 1) Try keyword match first (free, instant)
+        intent = self._classifyIntentLocally(message)
+        if intent is None:
+            # 2) Fallback to AI only when we truly can't tell
+            intent = await openai_service.classifyIntent(
+                message=message,
+                user_name=state.user_name,
+                context=f"Usuario de nivel {state.user_level}"
+            )
+            logger.info(f"[router] AI classifyIntent → {intent} for {state.user_name}")
+        else:
+            logger.info(f"[router] local classifyIntent → {intent} for {state.user_name}")
 
         # Route based on classified intent
         if intent == "purchase":

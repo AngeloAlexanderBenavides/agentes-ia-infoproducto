@@ -20,18 +20,46 @@ class UpsellAgent:
     - Closes the conversation
     """
 
+    def _classifyUpsellLocally(self, message: str) -> str | None:
+        """
+        Fast keyword-based upsell classification — no API call needed.
+        Returns None if ambiguous.
+        """
+        m = message.strip().lower()
+        ACCEPT = ["1", "sí", "si", "quiero", "acepto", "tomar", "me interesa", "cómo pago", "como pago", "dale", "vamos"]
+        INFO = ["2", "más info", "mas info", "información", "informacion", "de qué", "de que", "qué incluye", "que incluye", "cómo funciona", "como funciona"]
+        REJECT = ["3", "no gracias", "por ahora no", "en otro momento", "caro", "después", "luego", "paso"]
+        # "no" alone is ambiguous — check REJECT phrases first
+        for kw in REJECT:
+            if kw in m:
+                return "reject"
+        for kw in ACCEPT:
+            if kw in m:
+                return "accept"
+        for kw in INFO:
+            if kw in m:
+                return "info"
+        if m == "no":
+            return "reject"
+        return None
+
     async def process(self, sender: str, message: str, state: ConversationState) -> str:
         """
-        Analyze message and respond to upsell intent
+        Analyze message and respond to upsell intent.
+        Uses fast local matching; only calls AI when ambiguous.
         """
-        # Use OpenAI to classify intent intelligently
-        openai_service = OpenAiService()
-        intent = await openai_service.classifyUpsellIntent(
-            message=message,
-            user_name=state.user_name
-        )
-
-        logger.info(f"Upsell intent classified as: {intent} for user {state.user_name}")
+        # 1) Try keyword match first (free, instant)
+        intent = self._classifyUpsellLocally(message)
+        if intent is None:
+            # 2) Fallback to AI only when we truly can't tell
+            openai_service = OpenAiService()
+            intent = await openai_service.classifyUpsellIntent(
+                message=message,
+                user_name=state.user_name
+            )
+            logger.info(f"[upsell] AI classifyUpsellIntent → {intent} for {state.user_name}")
+        else:
+            logger.info(f"[upsell] local classifyUpsellIntent → {intent} for {state.user_name}")
 
         if intent == "accept":
             # User wants to buy the upsell
@@ -69,7 +97,7 @@ class UpsellAgent:
         Provide payment details for the upsell based on country
         """
         price = settings.UPSELL_ECUADOR_PRICE if state.user_country == "Ecuador" else settings.UPSELL_PRICE
-        
+
         if state.user_country == "Ecuador":
             payment_info = (
                 f"🏦 **Transferencia Bancaria (Ecuador)**\n"
@@ -99,7 +127,7 @@ class UpsellAgent:
         Provide more detailed information about the upsell product
         """
         price = settings.UPSELL_ECUADOR_PRICE if state.user_country == "Ecuador" else settings.UPSELL_PRICE
-        
+
         return (
             f"📖 **Detalles del {settings.UPSELL_PRODUCT_NAME}:**\n\n"
             "Este curso está diseñado para que pases de la teoría a la práctica avanzada.\n\n"

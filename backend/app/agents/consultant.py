@@ -39,14 +39,41 @@ class ConsultantAgent:
             "3️⃣ Soy avanzado/a"
         )
 
+    def _classifyLevelLocally(self, message: str) -> str | None:
+        """
+        Fast keyword-based level classification — no API call needed.
+        Returns None if ambiguous, so the caller can fall back to AI.
+        """
+        m = message.strip().lower()
+        BEGINNER = ["1", "novato", "princip", "cero", "empiezo", "empezando", "comenzando", "nunca", "nuevo"]
+        INTERMEDIATE = ["2", "algo", "básico", "experiencia", "probado", "un poco", "conoce"]
+        ADVANCED = ["3", "avanzado", "experto", "domino", "mucha", "avanzad"]
+        for kw in BEGINNER:
+            if kw in m:
+                return "beginner"
+        for kw in ADVANCED:
+            if kw in m:
+                return "advanced"
+        for kw in INTERMEDIATE:
+            if kw in m:
+                return "intermediate"
+        return None
+
     async def process(self, sender: str, message: str, state: ConversationState) -> str:
         """
-        Process user response about their experience level (using AI)
+        Process user response about their experience level.
+        Uses fast local matching; only calls AI when the message is ambiguous.
         """
         if state.consultant_step == "asked_level":
-            # Use OpenAI to classify user level intelligently
-            openai_service = OpenAiService()
-            level = await openai_service.classifyUserLevel(message, state.user_name)
+            # 1) Try keyword match first (free, instant)
+            level = self._classifyLevelLocally(message)
+            if level is None:
+                # 2) Fallback to AI only when we truly can't tell
+                openai_service = OpenAiService()
+                level = await openai_service.classifyUserLevel(message, state.user_name)
+                logger.info(f"[consultant] AI classifyUserLevel → {level}")
+            else:
+                logger.info(f"[consultant] local classifyUserLevel → {level}")
 
             # Get level text for display
             level_text_map = {
