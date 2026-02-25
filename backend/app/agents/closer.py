@@ -35,37 +35,31 @@ class CloserAgent:
             discount_message = f"🎉 ¡Buenas noticias! Por ser de Ecuador, tienes un descuento especial de ${settings.ECUADOR_DISCOUNT}.\n\n"
 
         state.final_price = final_price
+        # Activate immediately — user is on the payment screen, any image is a proof
+        state.waiting_for_payment_proof = True
+        state.closer_step = "waiting_proof"
         await update_conversation_state(sender, state)
 
         # Payment instructions
         if state.user_country == "Ecuador":
-            # Local transfer option for Ecuador
             payment_message = (
-                f"¡Excelente decisión, {state.user_name}! 🎉\n\n"
+                f"Me alegra mucho, {state.user_name}! 🙌\n\n"
                 f"{discount_message}"
-                f"💰 **Tu precio final: ${final_price}**\n\n"
-                "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "**Opción de pago (Ecuador):**\n\n"
-                f"🏦 **Banco:** {settings.BANK_NAME}\n"
-                f"👤 **Titular:** {settings.BANK_ACCOUNT_HOLDER}\n"
-                f"🔢 **Cuenta {settings.BANK_ACCOUNT_TYPE}:** {settings.BANK_ACCOUNT_NUMBER}\n"
-                f"💵 **Monto:** ${final_price}\n\n"
-                "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "⚠️ **IMPORTANTE:**\n"
-                "Una vez que hagas la transferencia, envíame una foto del comprobante "
-                "por aquí mismo para verificar tu pago y activar tu acceso inmediatamente. 📸\n\n"
-                "¿Alguna duda antes de proceder?"
+                f"El valor es de *${final_price}* y puedes pagarlo por transferencia bancaria:\n\n"
+                f"🏦 {settings.BANK_NAME}\n"
+                f"👤 {settings.BANK_ACCOUNT_HOLDER}\n"
+                f"🔢 Cuenta {settings.BANK_ACCOUNT_TYPE}: {settings.BANK_ACCOUNT_NUMBER}\n"
+                f"💵 Monto: ${final_price}\n\n"
+                "Cuando hagas la transferencia, mándame una foto del comprobante "
+                "y en cuestión de minutos te activo el acceso. 📸"
             )
         else:
-            # International payment (you can add PayPal, Stripe, etc.)
             payment_message = (
-                f"¡Excelente decisión, {state.user_name}! 🎉\n\n"
-                f"💰 **Tu precio: ${final_price}**\n\n"
-                "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "Para pagos internacionales, acepto:\n\n"
-                "💳 PayPal: [tu_email_paypal]\n"
-                "💳 Stripe: [tu_link_stripe]\n\n"
-                "Una vez realizado el pago, envíame el comprobante por aquí. 📸"
+                f"Me alegra mucho, {state.user_name}! 🙌\n\n"
+                f"El valor es *${final_price} USD*.\n\n"
+                "Para el pago internacional te paso el link de PayPal "
+                "y en cuanto confirme el pago te activo el acceso de inmediato.\n\n"
+                "¿Te funciona PayPal o prefieres otra forma?"
             )
 
         return payment_message

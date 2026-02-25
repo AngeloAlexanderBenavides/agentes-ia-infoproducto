@@ -1,37 +1,17 @@
-version: '3.8'
-
 services:
-  evolution-postgres:
-    image: postgres:15-alpine
-    container_name: evolution-postgres
-    environment:
-      - POSTGRES_DB=evolution
-      - POSTGRES_USER=evolution
-      - POSTGRES_PASSWORD=evolution123
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - whatsapp-network
-    restart: always
-
-  evolution-api:
-    image: atendai/evolution-api:latest
-    container_name: evolution-api
+  waha:
+    image: devlikeapro/waha
+    container_name: waha
     ports:
-      - "8080:8080"
+      - "3000:3000"
     environment:
-      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
-      - SERVER_URL=http://${PUBLIC_IP:-45.55.54.184}:8080
-      - DATABASE_ENABLED=true
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://evolution:evolution123@evolution-postgres:5432/evolution
-      - CACHE_REDIS_ENABLED=false
-      - CACHE_LOCAL_ENABLED=true
+      - WHATSAPP_API_KEY=${WAHA_API_KEY}
+      - WHATSAPP_HOOK_URL=http://fastapi-backend:8000/webhooks/waha
+      - WHATSAPP_HOOK_EVENTS=message,session.status
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
     restart: always
-    depends_on:
-      - evolution-postgres
     volumes:
-      - evolution_data:/evolution/instances
+      - waha_data:/app/.sessions
     networks:
       - whatsapp-network
 
@@ -42,9 +22,10 @@ services:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - EVOLUTION_API_URL=http://evolution-api:8080
-      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
-      - EVOLUTION_INSTANCE_NAME=${EVOLUTION_INSTANCE_NAME}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WAHA_API_URL=http://waha:3000
+      - WAHA_API_KEY=${WAHA_API_KEY}
+      - WAHA_SESSION=${WAHA_SESSION:-default}
       - OWNER_WHATSAPP=${OWNER_WHATSAPP}
       - BANK_ACCOUNT_NUMBER=${BANK_ACCOUNT_NUMBER}
       - BANK_ACCOUNT_HOLDER=${BANK_ACCOUNT_HOLDER:-Angelo}
@@ -53,15 +34,14 @@ services:
       - LEAD_MAGNET_URL=${LEAD_MAGNET_URL:-https://example.com/gift}
     restart: always
     depends_on:
-      - evolution-api
+      - waha
     volumes:
       - ./data:/app/data
     networks:
       - whatsapp-network
 
 volumes:
-  evolution_data:
-  postgres_data:
+  waha_data:
 
 networks:
   whatsapp-network:

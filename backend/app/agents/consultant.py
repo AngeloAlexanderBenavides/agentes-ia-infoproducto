@@ -30,13 +30,11 @@ class ConsultantAgent:
         flag = self._get_country_flag(state.user_country)
 
         return (
-            f"¡Buenísimo, {state.user_name}! {flag}\n\n"
-            f"Mira, para no darte material que ya conozcas y darte el regalo perfecto para ti...\n\n"
-            f"¿Ya has trabajado con {settings.PRODUCT_NAME} antes o estás empezando desde cero?\n\n"
-            "Responde con:\n"
-            "1️⃣ Soy novato/a, empiezo de cero\n"
-            "2️⃣ Ya tengo algo de experiencia\n"
-            "3️⃣ Soy avanzado/a"
+            f"¡Qué bueno conocerte, {state.user_name}! {flag}\n\n"
+            "Antes de enviarte cualquier cosa, quiero asegurarme de darte justo lo que necesitas... "
+            "no tiene sentido mandarte cosas que ya sabes o que se te van a hacer muy básicas.\n\n"
+            "Cuéntame: ¿tienes experiencia trabajando con inteligencia artificial o "
+            "esto es algo nuevo que estás explorando por primera vez?"
         )
 
     def _classifyLevelLocally(self, message: str) -> str | None:
@@ -45,8 +43,10 @@ class ConsultantAgent:
         Returns None if ambiguous, so the caller can fall back to AI.
         """
         m = message.strip().lower()
-        BEGINNER = ["1", "novato", "princip", "cero", "empiezo", "empezando", "comenzando", "nunca", "nuevo"]
-        INTERMEDIATE = ["2", "algo", "básico", "experiencia", "probado", "un poco", "conoce"]
+        BEGINNER = ["1", "novato", "princip", "cero", "empiezo",
+                    "empezando", "comenzando", "nunca", "nuevo"]
+        INTERMEDIATE = ["2", "algo", "básico",
+                        "experiencia", "probado", "un poco", "conoce"]
         ADVANCED = ["3", "avanzado", "experto", "domino", "mucha", "avanzad"]
         for kw in BEGINNER:
             if kw in m:
@@ -96,7 +96,7 @@ class ConsultantAgent:
             return response
 
         # Fallback
-        return "Por favor, responde 1, 2 o 3 según tu nivel de experiencia. 😊"
+        return "Cuéntame con tus palabras, no te preocupes por la forma. 😊 ¿Eres nuevo en esto o ya tienes alguna experiencia?"
 
     def _get_personalized_gift_message(self, name: str, level: str, level_text: str) -> str:
         """

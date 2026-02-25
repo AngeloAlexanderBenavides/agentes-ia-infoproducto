@@ -1,5 +1,6 @@
 """
-Evolution API Service - Handle all interactions with Evolution API
+WAHA (WhatsApp HTTP API) Service - Handle all interactions with WAHA
+Dropin replacement for Evolution API service.
 """
 import asyncio
 import logging
@@ -11,49 +12,43 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
+def _toWahaId(phone: str) -> str:
+    """Convert phone to WAHA chatId format: 593999@c.us
+    @lid IDs are passed through unchanged — WAHA NOWEB handles them natively.
+    """
+    if phone.endswith("@lid") or phone.endswith("@g.us"):
+        return phone
+    phone = phone.replace("@s.whatsapp.net", "").replace("@c.us", "")
+    return f"{phone}@c.us"
+
+
 class EvolutionApiService:
     """
-    Service to interact with Evolution API for sending WhatsApp messages
+    WAHA-backed service (drop-in replacement for Evolution API).
+    All method signatures remain identical so no other code changes.
     """
 
     def __init__(self):
-        self.base_url = settings.EVOLUTION_API_URL
-        self.api_key = settings.EVOLUTION_API_KEY
-        self.instance_name = settings.EVOLUTION_INSTANCE_NAME
+        self.base_url = settings.WAHA_API_URL
+        self.api_key = settings.WAHA_API_KEY
+        self.session = settings.WAHA_SESSION
 
         self.headers = {
-            "apikey": self.api_key,
+            "X-Api-Key": self.api_key,
             "Content-Type": "application/json"
         }
 
     async def sendTextMessage(self, phone_number: str, message: str) -> dict:
-        """
-        Send text message via Evolution API
-
-        Args:
-            phone_number: WhatsApp number (format: 593999999999@s.whatsapp.net or 593999999999)
-            message: Text message to send
-
-        Returns:
-            Response from Evolution API
-        """
+        """Send text message via WAHA."""
         try:
-            # Ensure phone number has correct format
-            if "@s.whatsapp.net" not in phone_number:
-                phone_number = f"{phone_number}@s.whatsapp.net"
-
-            url = f"{self.base_url}/message/sendText/{self.instance_name}"
-
-            payload = {
-                "number": phone_number,
-                "text": message
-            }
+            chat_id = _toWahaId(phone_number)
+            url = f"{self.base_url}/api/sendText"
+            payload = {"session": self.session, "chatId": chat_id, "text": message}
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(url, json=payload, headers=self.headers)
                 response.raise_for_status()
-
-                logger.info(f"Message sent to {phone_number}")
+                logger.info(f"Message sent to {chat_id}")
                 return response.json()
 
         except httpx.HTTPError as e:
@@ -66,35 +61,21 @@ class EvolutionApiService:
         image_url: str,
         caption: str = ""
     ) -> dict:
-        """
-        Send image message via Evolution API
-
-        Args:
-            phone_number: WhatsApp number
-            image_url: URL of the image
-            caption: Optional caption for the image
-
-        Returns:
-            Response from Evolution API
-        """
+        """Send image message via WAHA."""
         try:
-            if "@s.whatsapp.net" not in phone_number:
-                phone_number = f"{phone_number}@s.whatsapp.net"
-
-            url = f"{self.base_url}/message/sendMedia/{self.instance_name}"
-
+            chat_id = _toWahaId(phone_number)
+            url = f"{self.base_url}/api/sendImage"
             payload = {
-                "number": phone_number,
-                "media": image_url,
-                "caption": caption,
-                "mediatype": "image"
+                "session": self.session,
+                "chatId": chat_id,
+                "file": {"url": image_url},
+                "caption": caption
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(url, json=payload, headers=self.headers)
                 response.raise_for_status()
-
-                logger.info(f"Image sent to {phone_number}")
+                logger.info(f"Image sent to {chat_id}")
                 return response.json()
 
         except httpx.HTTPError as e:
@@ -102,141 +83,82 @@ class EvolutionApiService:
             raise
 
     async def downloadMedia(self, message_key: dict) -> bytes:
-        """
-        Download media file from Evolution API
-
-        Args:
-            message_key: Message key containing media info
-
-        Returns:
-            Media file bytes
-        """
-        try:
-            url = f"{self.base_url}/chat/getBase64FromMediaMessage/{self.instance_name}"
-
-            payload = {
-                "message": message_key
-            }
-
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, json=payload, headers=self.headers)
-                response.raise_for_status()
-
-                return response.content
-
-        except httpx.HTTPError as e:
-            logger.error(f"Error downloading media: {str(e)}")
-            raise
+        """Download media - not used in WAHA flow, returns empty bytes."""
+        return b""
 
     async def getInstanceStatus(self) -> dict:
-        """
-        Get Evolution API instance status
-
-        Returns:
-            Instance status information
-        """
+        """Get WAHA session status."""
         try:
-            url = f"{self.base_url}/instance/connectionState/{self.instance_name}"
-
+            url = f"{self.base_url}/api/sessions/{self.session}"
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(url, headers=self.headers)
                 response.raise_for_status()
-
                 return response.json()
-
         except httpx.HTTPError as e:
-            logger.error(f"Error getting instance status: {str(e)}")
+            logger.error(f"Error getting session status: {str(e)}")
             raise
 
-    async def setPresence(self, phone_number: str, presence: str = "available") -> dict:
-        """
-        Set presence status (online/offline)
-
-        Args:
-            phone_number: WhatsApp number
-            presence: "available" (online) or "unavailable" (offline)
-
-        Returns:
-            Response from Evolution API
-        """
+    async def sendSeen(self, phone_number: str) -> dict:
+        """Mark messages as read (double blue tick) via WAHA."""
         try:
-            if "@s.whatsapp.net" not in phone_number:
-                phone_number = f"{phone_number}@s.whatsapp.net"
-
-            url = f"{self.base_url}/chat/presence/{self.instance_name}"
-
-            payload = {
-                "number": phone_number,
-                "presence": presence  # "available" or "unavailable"
-            }
-
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            chat_id = _toWahaId(phone_number)
+            url = f"{self.base_url}/api/sendSeen"
+            payload = {"session": self.session, "chatId": chat_id}
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(url, json=payload, headers=self.headers)
-                response.raise_for_status()
-
-                logger.debug(f"Presence set to {presence} for {phone_number}")
-                return response.json()
-
+                logger.debug(f"sendSeen for {chat_id}")
+                return response.json() if response.content else {}
         except httpx.HTTPError as e:
-            logger.error(f"Error setting presence: {str(e)}")
-            # Don't raise - presence is not critical
+            logger.error(f"Error sending seen: {str(e)}")
             return {}
 
-    async def sendPresenceUpdate(self, phone_number: str, state: str = "composing") -> dict:
+    async def resolveLidToPhone(self, lid: str) -> str | None:
         """
-        Send presence update (typing indicator)
-
-        Args:
-            phone_number: WhatsApp number
-            state: "composing" (typing) or "paused" (stopped typing)
-
-        Returns:
-            Response from Evolution API
+        Resolve a WAHA @lid hidden ID to a real @c.us phone number.
+        Uses GET /api/{session}/lids/{lid} → LidToPhoneNumber schema.
+        Returns the resolved 'xxx@c.us' string, or None on failure.
         """
         try:
-            if "@s.whatsapp.net" not in phone_number:
-                phone_number = f"{phone_number}@s.whatsapp.net"
+            url = f"{self.base_url}/api/{self.session}/lids/{lid}"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=self.headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    # LidToPhoneNumber: {lid: "...", phoneNumber: "593xxx@c.us"}
+                    phone = data.get("phoneNumber") or data.get("phone")
+                    if phone:
+                        return _toWahaId(phone)
+        except Exception as e:
+            logger.warning(f"Could not resolve @lid {lid}: {e}")
+        return None
 
-            url = f"{self.base_url}/chat/presenceUpdate/{self.instance_name}"
+    async def setPresence(self, phone_number: str, presence: str = "available") -> dict:
+        """Presence not supported directly in WAHA NOWEB — no-op."""
+        return {}
 
-            payload = {
-                "number": phone_number,
-                "state": state,  # "composing" or "paused"
-                "delay": 2000  # milliseconds
-            }
+    async def sendPresenceUpdate(self, phone_number: str, state: str = "composing") -> dict:
+        """Send typing indicator via WAHA."""
+        try:
+            chat_id = _toWahaId(phone_number)
+            endpoint = "startTyping" if state == "composing" else "stopTyping"
+            url = f"{self.base_url}/api/{endpoint}"
+            payload = {"session": self.session, "chatId": chat_id}
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(url, json=payload, headers=self.headers)
-                response.raise_for_status()
-
-                logger.debug(f"Presence update: {state} for {phone_number}")
-                return response.json()
+                logger.debug(f"Typing {endpoint} for {chat_id}")
+                return response.json() if response.content else {}
 
         except httpx.HTTPError as e:
-            logger.error(f"Error sending presence update: {str(e)}")
-            # Don't raise - typing indicator is not critical
+            logger.error(f"Error sending typing indicator: {str(e)}")
             return {}
 
     async def simulateHumanDelay(self, message: str) -> None:
-        """
-        Simulate human typing delay based on message length
-
-        Args:
-            message: The message being typed (used to calculate delay)
-        """
-        # Base delay: 0.5-1.5 seconds
-        base_delay = random.uniform(0.5, 1.5)
-
-        # Additional delay based on message length
-        # Humans type ~40-60 characters per minute = ~0.7-1 char/second
-        # We'll be faster but still realistic
-        char_delay = len(message) * random.uniform(0.05, 0.08)
-
-        # Total delay (max 10 seconds to not keep user waiting too long)
-        total_delay = min(base_delay + char_delay, 10.0)
-
-        logger.debug(
-            f"Simulating human typing delay: {total_delay:.2f}s for {len(message)} chars")
+        """Simulate human typing delay based on message length."""
+        base_delay = random.uniform(1.0, 2.5)
+        char_delay = len(message) * random.uniform(0.04, 0.07)
+        total_delay = min(base_delay + char_delay, 22.0)
+        logger.debug(f"Simulating typing delay: {total_delay:.2f}s")
         await asyncio.sleep(total_delay)
 
     async def sendTextWithHumanBehavior(
@@ -246,55 +168,25 @@ class EvolutionApiService:
         use_typing: bool = True,
         use_presence: bool = True
     ) -> dict:
-        """
-        Send text message with human-like behavior to avoid bot detection
-
-        This method:
-        1. Sets presence to "available" (online)
-        2. Shows "typing..." indicator
-        3. Waits a realistic time based on message length
-        4. Sends the message
-        5. Sets presence back to "unavailable" (offline) after a delay
-
-        Args:
-            phone_number: WhatsApp number
-            message: Text message to send
-            use_typing: Whether to show typing indicator (default: True)
-            use_presence: Whether to manage online/offline status (default: True)
-
-        Returns:
-            Response from Evolution API
-        """
+        """Send text with human-like reading + typing delay."""
         try:
-            # Step 1: Go online
-            if use_presence:
-                await self.setPresence(phone_number, "available")
-                await asyncio.sleep(random.uniform(0.3, 0.8))
+            # Simulate reading the incoming message before reacting
+            reading_delay = random.uniform(1.5, 4.0)
+            await asyncio.sleep(reading_delay)
 
-            # Step 2: Start typing
             if use_typing:
                 await self.sendPresenceUpdate(phone_number, "composing")
 
-            # Step 3: Simulate human typing delay
             await self.simulateHumanDelay(message)
 
-            # Step 4: Stop typing indicator
             if use_typing:
                 await self.sendPresenceUpdate(phone_number, "paused")
-                await asyncio.sleep(random.uniform(0.2, 0.5))
+                await asyncio.sleep(random.uniform(0.3, 0.8))
 
-            # Step 5: Send message
             response = await self.sendTextMessage(phone_number, message)
-
-            # Step 6: Stay online a bit, then go offline (optional)
-            if use_presence:
-                await asyncio.sleep(random.uniform(1.0, 3.0))
-                await self.setPresence(phone_number, "unavailable")
-
             logger.info(f"Message sent with human behavior to {phone_number}")
             return response
 
         except Exception as e:
             logger.error(f"Error sending message with human behavior: {str(e)}")
-            # Fallback to regular message if humanization fails
             return await self.sendTextMessage(phone_number, message)

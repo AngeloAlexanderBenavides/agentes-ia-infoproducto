@@ -26,9 +26,12 @@ class UpsellAgent:
         Returns None if ambiguous.
         """
         m = message.strip().lower()
-        ACCEPT = ["1", "sí", "si", "quiero", "acepto", "tomar", "me interesa", "cómo pago", "como pago", "dale", "vamos"]
-        INFO = ["2", "más info", "mas info", "información", "informacion", "de qué", "de que", "qué incluye", "que incluye", "cómo funciona", "como funciona"]
-        REJECT = ["3", "no gracias", "por ahora no", "en otro momento", "caro", "después", "luego", "paso"]
+        ACCEPT = ["1", "sí", "si", "quiero", "acepto", "tomar",
+                  "me interesa", "cómo pago", "como pago", "dale", "vamos"]
+        INFO = ["2", "más info", "mas info", "información", "informacion", "de qué",
+                "de que", "qué incluye", "que incluye", "cómo funciona", "como funciona"]
+        REJECT = ["3", "no gracias", "por ahora no",
+                  "en otro momento", "caro", "después", "luego", "paso"]
         # "no" alone is ambiguous — check REJECT phrases first
         for kw in REJECT:
             if kw in m:
@@ -57,9 +60,11 @@ class UpsellAgent:
                 message=message,
                 user_name=state.user_name
             )
-            logger.info(f"[upsell] AI classifyUpsellIntent → {intent} for {state.user_name}")
+            logger.info(
+                f"[upsell] AI classifyUpsellIntent → {intent} for {state.user_name}")
         else:
-            logger.info(f"[upsell] local classifyUpsellIntent → {intent} for {state.user_name}")
+            logger.info(
+                f"[upsell] local classifyUpsellIntent → {intent} for {state.user_name}")
 
         if intent == "accept":
             # User wants to buy the upsell

@@ -8,16 +8,24 @@ class Settings(BaseSettings):
     APP_NAME: str = "WhatsApp Agent System"
     DEBUG: bool = True
 
-    # Evolution API (Optional for local testing)
-    EVOLUTION_API_URL: str = "http://localhost:8080"
-    EVOLUTION_API_KEY: str = "test-key"
-    EVOLUTION_INSTANCE_NAME: str = "test-instance"
+    # WAHA (WhatsApp HTTP API)
+    WAHA_API_URL: str = "http://localhost:3000"
+    WAHA_API_KEY: str = "test-key"
+    WAHA_SESSION: str = "default"
 
-    # OpenAI
+    # Evolution API (kept for backward compat)
+    EVOLUTION_API_URL: str = "http://localhost:3000"
+    EVOLUTION_API_KEY: str = "test-key"
+    EVOLUTION_INSTANCE_NAME: str = "default"
+
+    # Anthropic
+    ANTHROPIC_API_KEY: str = ""
+
+    # OpenAI (legacy, kept for backward compat)
     OPENAI_API_KEY: str = ""
 
-    # Database
-    DATABASE_URL: str = "sqlite:///./whatsapp_agents.db"
+    # Database (stored in /app/data so it persists across Docker rebuilds)
+    DATABASE_URL: str = "sqlite:///./data/whatsapp_agents.db"
 
     # WhatsApp Configuration
     OWNER_WHATSAPP: str = "593999496469"  # Angelo's WhatsApp number for notifications

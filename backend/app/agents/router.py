@@ -26,9 +26,12 @@ class RouterAgent:
         Returns None if ambiguous so the caller can use AI as fallback.
         """
         m = message.strip().lower()
-        PURCHASE = ["1", "comprar", "pagar", "precio", "cómo pago", "como pago", "quiero", "proceder", "sí quiero", "si quiero", "me interesa", "cuánto", "cuanto"]
-        INFO = ["2", "más info", "mas info", "información", "informacion", "cómo funciona", "como funciona", "detalles", "qué incluye", "que incluye", "saber más", "saber mas"]
-        OBJECTION = ["3", "caro", "no tengo", "sin dinero", "después", "luego", "espera", "duda", "dudas", "no sé", "no se", "pensarlo"]
+        PURCHASE = ["1", "comprar", "pagar", "precio", "cómo pago", "como pago", "quiero",
+                    "proceder", "sí quiero", "si quiero", "me interesa", "cuánto", "cuanto"]
+        INFO = ["2", "más info", "mas info", "información", "informacion", "cómo funciona",
+                "como funciona", "detalles", "qué incluye", "que incluye", "saber más", "saber mas"]
+        OBJECTION = ["3", "caro", "no tengo", "sin dinero", "después",
+                     "luego", "espera", "duda", "dudas", "no sé", "no se", "pensarlo"]
         for kw in PURCHASE:
             if kw in m:
                 return "purchase"
@@ -58,7 +61,8 @@ class RouterAgent:
             )
             logger.info(f"[router] AI classifyIntent → {intent} for {state.user_name}")
         else:
-            logger.info(f"[router] local classifyIntent → {intent} for {state.user_name}")
+            logger.info(
+                f"[router] local classifyIntent → {intent} for {state.user_name}")
 
         # Route based on classified intent
         if intent == "purchase":

@@ -91,6 +91,104 @@ async def evolution_webhook(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/waha")
+async def waha_webhook(request: Request):
+    """
+    Webhook endpoint to receive messages from WAHA.
+    Payload format:
+    {
+      "event": "message",
+      "session": "default",
+      "payload": {
+        "id": "...", "from": "593999@c.us", "fromMe": false,
+        "body": "Hello", "hasMedia": false
+      }
+    }
+    """
+    try:
+        data = await request.json()
+        event_type = data.get("event")
+        logger.warning(
+            f"[WAHA] event={event_type} payload_keys={list(data.get('payload', {}).keys())}")
+
+        if event_type == "message":
+            payload = data.get("payload", {})
+            from_me = payload.get("fromMe", False)
+            sender = payload.get("from", "")
+            body = payload.get("body", "")
+
+            # @lid is WAHA NOWEB's hidden ID — resolve it to a real @c.us number
+            # using the WAHA endpoint GET /api/{session}/lids/{lid}.
+            # Fallback: try to parse message ID (format: "false_593xxx@c.us_XXXX").
+            if sender.endswith("@lid"):
+                resolved = await evolution_service.resolveLidToPhone(sender)
+                if resolved:
+                    logger.warning(f"[WAHA] @lid {sender} resolved to: {resolved}")
+                    sender = resolved
+                else:
+                    # Fallback: extract @c.us from message ID
+                    msg_id = payload.get("id", "")
+                    if "@" in msg_id:
+                        parts = msg_id.split("_")
+                        for part in parts:
+                            if "@c.us" in part:
+                                sender = part
+                                break
+                    logger.warning(f"[WAHA] @lid unresolved, using fallback: {sender}")
+
+            logger.warning(
+                f"[WAHA] message: from={sender} fromMe={from_me} body={repr(body)[:80]}")
+
+            # Skip messages sent by the bot itself
+            if from_me:
+                return {"status": "ignored", "reason": "own message"}
+
+            if not sender:
+                return {"status": "ignored", "reason": "no sender"}
+
+            # Mark message as read (double blue tick)
+            await evolution_service.sendSeen(sender)
+
+            # Get message content
+            if payload.get("hasMedia"):
+                message_type = "image"
+                message_content = {"url": payload.get("mediaUrl", "")}
+            else:
+                body = (payload.get("body") or "").strip()
+                if not body:
+                    return {"status": "ignored", "reason": "empty message"}
+                message_type = "text"
+                message_content = body
+
+            conversation_state = await get_conversation_state(sender)
+
+            response = await process_message(
+                sender=sender,
+                message_type=message_type,
+                message_content=message_content,
+                conversation_state=conversation_state
+            )
+
+            logger.warning(
+                f"[WAHA] agent response for {sender}: {repr(str(response))[:120]}")
+            if response:
+                await evolution_service.sendTextWithHumanBehavior(
+                    sender,
+                    response,
+                    use_typing=True,
+                    use_presence=False
+                )
+                logger.warning(f"[WAHA] message sent OK to {sender}")
+
+            return {"status": "success"}
+
+        return {"status": "ignored", "reason": "unsupported event"}
+
+    except Exception as e:
+        logger.error(f"[WAHA] ERROR: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def process_message(
     sender: str,
     message_type: str,

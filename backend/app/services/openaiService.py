@@ -1,35 +1,27 @@
 """
-OpenAI Service - AI-powered classification and analysis
+AI Service - powered by Anthropic Claude
 """
+import json
 import logging
 from typing import Literal
 
+import anthropic
 from app.config.settings import settings
-from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
 
 class OpenAiService:
     """
-    Service to interact with OpenAI for intelligent message processing
+    Service to interact with Anthropic Claude for intelligent message processing.
+    Class name kept as OpenAiService for backward compatibility.
     """
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = "gpt-4o-mini"  # Fast and cost-effective
+        self.client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self.model = "claude-3-5-haiku-20241022"  # Fast and cost-effective
 
     async def classifyUserLevel(self, message: str, user_name: str) -> Literal["beginner", "intermediate", "advanced"]:
-        """
-        Use AI to classify user's experience level based on their response
-
-        Args:
-            message: User's response about their experience
-            user_name: User's name for context
-
-        Returns:
-            Classification: "beginner", "intermediate", or "advanced"
-        """
         try:
             prompt = f"""Analiza la siguiente respuesta de {user_name} sobre su nivel de experiencia y clasifícalo.
 
@@ -42,19 +34,15 @@ Clasifica su nivel como:
 
 Responde SOLO con una palabra: beginner, intermediate o advanced"""
 
-            response = await self.client.chat.completions.create(
+            response = await self.client.messages.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "Eres un clasificador experto que determina el nivel de experiencia de usuarios. Responde solo con: beginner, intermediate o advanced"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=10
+                max_tokens=10,
+                system="Eres un clasificador experto que determina el nivel de experiencia de usuarios. Responde solo con: beginner, intermediate o advanced",
+                messages=[{"role": "user", "content": prompt}]
             )
 
-            classification = response.choices[0].message.content.strip().lower()
+            classification = response.content[0].text.strip().lower()
 
-            # Validate response
             if classification not in ["beginner", "intermediate", "advanced"]:
                 logger.warning(
                     f"Unexpected classification: {classification}, defaulting to beginner")
@@ -65,7 +53,6 @@ Responde SOLO con una palabra: beginner, intermediate o advanced"""
 
         except Exception as e:
             logger.error(f"Error classifying user level: {str(e)}")
-            # Default to beginner on error
             return "beginner"
 
     async def classifyIntent(
@@ -74,17 +61,6 @@ Responde SOLO con una palabra: beginner, intermediate o advanced"""
         user_name: str,
         context: str = ""
     ) -> Literal["purchase", "info", "objection", "unclear"]:
-        """
-        Classify user's purchase intent
-
-        Args:
-            message: User's message
-            user_name: User's name
-            context: Additional context about the conversation
-
-        Returns:
-            Intent: "purchase", "info", "objection", or "unclear"
-        """
         try:
             prompt = f"""Analiza la intención del siguiente mensaje de {user_name}.
 
@@ -99,19 +75,15 @@ Clasifica la intención como:
 
 Responde SOLO con una palabra: purchase, info, objection o unclear"""
 
-            response = await self.client.chat.completions.create(
+            response = await self.client.messages.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "Eres un clasificador experto de intenciones de compra. Responde solo con: purchase, info, objection o unclear"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=10
+                max_tokens=10,
+                system="Eres un clasificador experto de intenciones de compra. Responde solo con: purchase, info, objection o unclear",
+                messages=[{"role": "user", "content": prompt}]
             )
 
-            intent = response.choices[0].message.content.strip().lower()
+            intent = response.content[0].text.strip().lower()
 
-            # Validate response
             if intent not in ["purchase", "info", "objection", "unclear"]:
                 logger.warning(f"Unexpected intent: {intent}, defaulting to unclear")
                 return "unclear"
@@ -124,15 +96,6 @@ Responde SOLO con una palabra: purchase, info, objection o unclear"""
             return "unclear"
 
     async def parseNameAndCountry(self, message: str) -> tuple[str | None, str | None]:
-        """
-        Extract name and country from user's message using AI
-
-        Args:
-            message: User's message (e.g., "Carlos, Ecuador" or "Soy María de Colombia")
-
-        Returns:
-            Tuple of (name, country)
-        """
         try:
             prompt = f"""Extrae el nombre y el país del siguiente mensaje:
 
@@ -142,21 +105,23 @@ Responde en formato JSON exactamente así:
 {{"name": "Nombre", "country": "País"}}
 
 Si no encuentras el nombre o país, usa null.
-El país debe estar en español y capitalizado (Ecuador, Colombia, Perú, etc.)"""
+El país debe estar en español y capitalizado (Ecuador, Colombia, Perú, etc.)
+Responde SOLO con el JSON, sin texto adicional."""
 
-            response = await self.client.chat.completions.create(
+            response = await self.client.messages.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "Eres un extractor experto de información. Responde SOLO con JSON válido."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
                 max_tokens=50,
-                response_format={"type": "json_object"}
+                system="Eres un extractor experto de información. Responde SOLO con JSON válido, sin texto adicional.",
+                messages=[{"role": "user", "content": prompt}]
             )
 
-            import json
-            result = json.loads(response.choices[0].message.content)
+            text = response.content[0].text.strip()
+            # Extract JSON even if there's surrounding text
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start != -1 and end > start:
+                text = text[start:end]
+            result = json.loads(text)
 
             name = result.get("name")
             country = result.get("country")
@@ -174,17 +139,6 @@ El país debe estar en español y capitalizado (Ecuador, Colombia, Perú, etc.)"
         user_name: str,
         objection_type: str = "general"
     ) -> str:
-        """
-        Generate a response to handle objections using AI
-
-        Args:
-            message: User's objection message
-            user_name: User's name
-            objection_type: Type of objection (price, time, doubt)
-
-        Returns:
-            AI-generated response to handle the objection
-        """
         try:
             prompt = f"""Eres un vendedor experto y empático. {user_name} tiene una objeción sobre un producto.
 
@@ -201,23 +155,19 @@ Genera una respuesta que:
 
 Genera SOLO la respuesta, sin introducción."""
 
-            response = await self.client.chat.completions.create(
+            response = await self.client.messages.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "Eres un vendedor consultivo experto que maneja objeciones con empatía y profesionalismo."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=200
+                max_tokens=200,
+                system="Eres un vendedor consultivo experto que maneja objeciones con empatía y profesionalismo.",
+                messages=[{"role": "user", "content": prompt}]
             )
 
-            objection_response = response.choices[0].message.content.strip()
+            objection_response = response.content[0].text.strip()
             logger.info(f"Generated objection response for {user_name}")
             return objection_response
 
         except Exception as e:
             logger.error(f"Error handling objection: {str(e)}")
-            # Fallback response
             return (
                 f"Entiendo tus dudas, {user_name}. 🤔\n\n"
                 "Cuéntame específicamente qué te preocupa y con gusto te lo aclaro.\n\n"
@@ -252,20 +202,18 @@ Clasifica la intención como:
 
 Responde SOLO con una palabra: accept, info, reject o unclear"""
 
-            response = await self.client.chat.completions.create(
+            response = await self.client.messages.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "Eres un clasificador experto de intenciones de compra para upsells. Responde solo con: accept, info, reject o unclear"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=10
+                max_tokens=10,
+                system="Eres un clasificador experto de intenciones de compra para upsells. Responde solo con: accept, info, reject o unclear",
+                messages=[{"role": "user", "content": prompt}]
             )
 
-            intent = response.choices[0].message.content.strip().lower()
+            intent = response.content[0].text.strip().lower()
 
             if intent not in ["accept", "info", "reject", "unclear"]:
-                logger.warning(f"Unexpected upsell intent: {intent}, defaulting to unclear")
+                logger.warning(
+                    f"Unexpected upsell intent: {intent}, defaulting to unclear")
                 return "unclear"
 
             logger.info(f"Upsell intent classified as: {intent}")
